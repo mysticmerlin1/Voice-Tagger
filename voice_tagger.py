@@ -65,6 +65,36 @@ THRESHOLDS = {
     "voiced_seg_long": 0.4,         # above → Long Sustained
     "voiced_seg_short": 0.15,       # below → Short Choppy
     "unvoiced_seg_pauses": 0.3,     # above → Deliberate Pauses
+
+    # Intonation (semitone slope comparison)
+    "intonation_ratio_rising": 1.5, # rising/falling slope > this → Rising Intonation
+    "intonation_ratio_falling": 1.5,# falling/rising slope > this → Falling Intonation
+
+    # Articulation (F2 frequency, Hz)
+    "f2_wide_vowel": 1900.0,        # above → Wide Vowel Space (clear articulation)
+    "f2_narrow_vowel": 1400.0,      # below → Narrow Vowel Space (dark/mumbled)
+
+    # Timbre (spectral flux variation)
+    "flux_cv_varied": 0.8,          # above → Timbral Variety
+    "flux_cv_consistent": 0.4,      # below → Timbral Consistent
+
+    # Rhythm
+    "voiced_seg_std_regular": 0.10, # below → Regular Rhythm
+    "voiced_seg_std_irregular": 0.25,# above → Irregular Rhythm
+    "voiced_per_sec_fast": 4.0,     # above → High Speech Rate
+    "voiced_per_sec_slow": 1.5,     # below → Low Speech Rate
+
+    # Vocal effort (H1-A3: spectral tilt, higher = less effort)
+    "h1a3_effortful": 15.0,         # below → Effortful/Loud
+    "h1a3_relaxed": 30.0,           # above → Relaxed/Soft
+
+    # Dynamic range (loudness percentile range)
+    "loud_range_wide": 1.2,         # above → Wide Dynamic Range
+    "loud_range_narrow": 0.5,       # below → Narrow Dynamic Range
+
+    # Resonance clarity (F1 bandwidth, Hz — lower = more focused)
+    "f1bw_clear": 800.0,            # below → Clear Resonance
+    "f1bw_muffled": 1400.0,         # above → Muffled
 }
 
 SUPPORTED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
@@ -163,6 +193,13 @@ def derive_tags(osm: dict, pitch: dict) -> dict:
         "energy_dynamics": [],
         "formant_resonance": [],
         "voicing_patterns": [],
+        "intonation": [],
+        "articulation": [],
+        "timbre": [],
+        "rhythm": [],
+        "vocal_effort": [],
+        "dynamic_range": [],
+        "resonance_clarity": [],
     }
 
     # --- Voice quality ---
@@ -257,6 +294,69 @@ def derive_tags(osm: dict, pitch: dict) -> dict:
 
     if unvoiced_len > T["unvoiced_seg_pauses"]:
         tags["voicing_patterns"].append("Deliberate Pauses")
+
+    # --- Intonation ---
+    rising_slope = osm.get("F0semitoneFrom27.5Hz_sma3nz_meanRisingSlope", 1)
+    falling_slope = abs(osm.get("F0semitoneFrom27.5Hz_sma3nz_meanFallingSlope", 1))
+
+    if falling_slope > 0 and rising_slope / falling_slope > T["intonation_ratio_rising"]:
+        tags["intonation"].append("Rising Intonation")
+    elif rising_slope > 0 and falling_slope / rising_slope > T["intonation_ratio_falling"]:
+        tags["intonation"].append("Falling Intonation")
+
+    # --- Articulation ---
+    f2 = osm.get("F2frequency_sma3nz_amean", 1600)
+
+    if f2 > T["f2_wide_vowel"]:
+        tags["articulation"].append("Wide Vowel Space")
+    elif f2 < T["f2_narrow_vowel"]:
+        tags["articulation"].append("Narrow Vowel Space")
+
+    # --- Timbre ---
+    flux_cv = osm.get("spectralFlux_sma3_stddevNorm", 0.5)
+
+    if flux_cv > T["flux_cv_varied"]:
+        tags["timbre"].append("Timbral Variety")
+    elif flux_cv < T["flux_cv_consistent"]:
+        tags["timbre"].append("Timbral Consistent")
+
+    # --- Rhythm ---
+    voiced_seg_std = osm.get("StddevVoicedSegmentLengthSec", 0.15)
+    voiced_per_sec = osm.get("VoicedSegmentsPerSec", 2.5)
+
+    if voiced_seg_std < T["voiced_seg_std_regular"]:
+        tags["rhythm"].append("Regular Rhythm")
+    elif voiced_seg_std > T["voiced_seg_std_irregular"]:
+        tags["rhythm"].append("Irregular Rhythm")
+
+    if voiced_per_sec > T["voiced_per_sec_fast"]:
+        tags["rhythm"].append("High Speech Rate")
+    elif voiced_per_sec < T["voiced_per_sec_slow"]:
+        tags["rhythm"].append("Low Speech Rate")
+
+    # --- Vocal effort ---
+    h1a3 = osm.get("logRelF0-H1-A3_sma3nz_amean", 22)
+
+    if h1a3 < T["h1a3_effortful"]:
+        tags["vocal_effort"].append("Effortful/Loud")
+    elif h1a3 > T["h1a3_relaxed"]:
+        tags["vocal_effort"].append("Relaxed/Soft")
+
+    # --- Dynamic range ---
+    loud_range = osm.get("loudness_sma3_pctlrange0-2", 0.8)
+
+    if loud_range > T["loud_range_wide"]:
+        tags["dynamic_range"].append("Wide Dynamic Range")
+    elif loud_range < T["loud_range_narrow"]:
+        tags["dynamic_range"].append("Narrow Dynamic Range")
+
+    # --- Resonance clarity ---
+    f1bw = osm.get("F1bandwidth_sma3nz_amean", 1000)
+
+    if f1bw < T["f1bw_clear"]:
+        tags["resonance_clarity"].append("Clear Resonance")
+    elif f1bw > T["f1bw_muffled"]:
+        tags["resonance_clarity"].append("Muffled")
 
     return tags
 
