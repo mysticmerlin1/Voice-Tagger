@@ -1,0 +1,6 @@
+torch
+torchaudio
+librosa
+opensmile
+speechbrain
+numpy
